@@ -1,6 +1,7 @@
 import express from 'express';
 import path from 'path';
 import fs from 'fs';
+import https from 'https';
 import { fileURLToPath } from 'url';
 import mime from 'mime-types';
 
@@ -13,6 +14,119 @@ const PORT = process.env.PORT || 3000;
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+// Google Drive Gallery Folder Integration
+const GOOGLE_DRIVE_FOLDER_ID = '1kAaaDLnv0cHPJ0QQKDcprOtA96Wpy873';
+let cachedGallery = {
+  timestamp: 0,
+  items: []
+};
+
+// Fallback local gallery images from assets/images/gallery
+function getLocalGalleryFallback() {
+  const localDir = path.join(__dirname, 'assets/images/gallery');
+  const uploadsDir = path.join(__dirname, 'wp-content/uploads/2024/09');
+  const targetDir = fs.existsSync(localDir) ? localDir : (fs.existsSync(uploadsDir) ? uploadsDir : null);
+
+  if (!targetDir) return [];
+
+  const files = fs.readdirSync(targetDir);
+  return files
+    .filter(f => f.match(/^(gall_|moosb_).*\.(webp|jpg|jpeg|png)$/i) && !f.includes('-300x') && !f.includes('-150x'))
+    .map((filename, idx) => ({
+      id: `local_${idx}`,
+      url: `/assets/images/gallery/${filename}`,
+      thumbnailUrl: `/assets/images/gallery/${filename}`,
+      source: 'local'
+    }));
+}
+
+function fetchGoogleDriveGallery(folderId) {
+  return new Promise((resolve) => {
+    const url = `https://drive.google.com/drive/folders/${folderId}`;
+    const req = https.get(url, { headers: { 'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36' }, timeout: 8000 }, (res) => {
+      let data = '';
+      res.on('data', c => data += c);
+      res.on('end', () => {
+        try {
+          const regex = /aria-label=[\x27\"]([^\x27\"]+\.(?:jpg|jpeg|png|webp|JPG|JPEG|PNG|WEBP))[^\x27\"]*[\x27\"][^>]*ssk=[\x27\"](?:[^\x27\"]*?:)?([a-zA-Z0-9_-]{25,})/g;
+          let m;
+          const items = [];
+          const seen = new Set();
+          while ((m = regex.exec(data)) !== null) {
+            const rawId = m[2].replace(/-0-[0-9]+$/, '').trim();
+            if (!seen.has(rawId)) {
+              seen.add(rawId);
+              items.push({
+                id: rawId,
+                url: `https://lh3.googleusercontent.com/d/${rawId}=w1600`,
+                thumbnailUrl: `https://lh3.googleusercontent.com/d/${rawId}=w800`,
+                source: 'drive'
+              });
+            }
+          }
+
+          if (items.length > 0) {
+            resolve(items);
+          } else {
+            resolve(getLocalGalleryFallback());
+          }
+        } catch (e) {
+          resolve(getLocalGalleryFallback());
+        }
+      });
+    });
+
+    req.on('error', () => {
+      resolve(getLocalGalleryFallback());
+    });
+    req.on('timeout', () => {
+      req.destroy();
+      resolve(getLocalGalleryFallback());
+    });
+  });
+}
+
+// API endpoint for dynamic gallery images from Google Drive folder
+app.get('/api/gallery', async (req, res) => {
+  const now = Date.now();
+  const forceRefresh = req.query.refresh === '1';
+
+  // Return cached result if less than 5 minutes old
+  if (!forceRefresh && cachedGallery.items.length > 0 && now - cachedGallery.timestamp < 300000) {
+    return res.json({
+      success: true,
+      folderId: GOOGLE_DRIVE_FOLDER_ID,
+      count: cachedGallery.items.length,
+      cached: true,
+      items: cachedGallery.items
+    });
+  }
+
+  try {
+    const items = await fetchGoogleDriveGallery(GOOGLE_DRIVE_FOLDER_ID);
+    cachedGallery = {
+      timestamp: now,
+      items: items.length > 0 ? items : getLocalGalleryFallback()
+    };
+    return res.json({
+      success: true,
+      folderId: GOOGLE_DRIVE_FOLDER_ID,
+      count: cachedGallery.items.length,
+      cached: false,
+      items: cachedGallery.items
+    });
+  } catch (err) {
+    const fallbackItems = getLocalGalleryFallback();
+    return res.json({
+      success: true,
+      folderId: GOOGLE_DRIVE_FOLDER_ID,
+      count: fallbackItems.length,
+      cached: false,
+      items: fallbackItems
+    });
+  }
+});
+
 // API route for contact form submissions
 app.post('/api/contact', (req, res) => {
   const { form_fields } = req.body || {};
@@ -23,29 +137,53 @@ app.post('/api/contact', (req, res) => {
   });
 });
 
-// Helper to find actual file on disk considering query params embedded in filenames
+// Helper to find actual file on disk considering query params embedded in filenames and aliases
 function findStaticFile(requestedUrl, requestedPath) {
   const decodedPath = decodeURIComponent(requestedPath).replace(/^\/+/, '');
   const decodedUrl = decodeURIComponent(requestedUrl.split('#')[0]).replace(/^\/+/, '');
   const rawUrl = requestedUrl.split('#')[0].replace(/^\/+/, '');
 
+  // Alias mapping between assets/ and legacy wp-content/
+  const aliasedCandidates = [];
+  if (decodedPath.startsWith('assets/')) {
+    aliasedCandidates.push(decodedPath.replace(/^assets\/js\//, 'wp-content/js/'));
+    aliasedCandidates.push(decodedPath.replace(/^assets\/plugins\//, 'wp-content/plugins/'));
+    aliasedCandidates.push(decodedPath.replace(/^assets\/themes\//, 'wp-content/themes/'));
+    aliasedCandidates.push(decodedPath.replace(/^assets\/images\/gallery\//, 'wp-content/uploads/2024/09/'));
+    aliasedCandidates.push(decodedPath.replace(/^assets\/images\/uploads\//, 'wp-content/uploads/'));
+    aliasedCandidates.push(decodedPath.replace(/^assets\/vendor\//, 'wp-includes/'));
+  } else if (decodedPath.startsWith('wp-content/')) {
+    aliasedCandidates.push(decodedPath.replace(/^wp-content\/js\//, 'assets/js/'));
+    aliasedCandidates.push(decodedPath.replace(/^wp-content\/plugins\//, 'assets/plugins/'));
+    aliasedCandidates.push(decodedPath.replace(/^wp-content\/themes\//, 'assets/themes/'));
+    aliasedCandidates.push(decodedPath.replace(/^wp-content\/uploads\/2024\/09\//, 'assets/images/gallery/'));
+    aliasedCandidates.push(decodedPath.replace(/^wp-content\/uploads\//, 'assets/images/uploads/'));
+  } else if (decodedPath.startsWith('wp-includes/')) {
+    aliasedCandidates.push(decodedPath.replace(/^wp-includes\//, 'assets/vendor/'));
+  }
+
   const candidates = [
     decodedUrl,
     rawUrl,
     decodedPath,
+    ...aliasedCandidates,
     decodedPath.split('?')[0],
     decodedPath.split('%3F')[0],
     decodedUrl.split('?')[0],
     rawUrl.split('?')[0],
     decodedPath.replace('/elementor/thumbs/', '/'),
+    path.join('assets/images/gallery', path.basename(decodedPath.split('?')[0].split('%3F')[0])),
     path.join('wp-content/uploads/2024/09', path.basename(decodedPath.split('?')[0].split('%3F')[0]))
   ];
 
   if (decodedPath.includes('rubix-qu78yis')) {
+    candidates.push('assets/images/uploads/elementor/thumbs/rubix-qu78yisq23av74jrtvjrjiew8ioiuo5xy05xxjlre0.png');
     candidates.push('wp-content/uploads/elementor/thumbs/rubix-qu78yisq23av74jrtvjrjiew8ioiuo5xy05xxjlre0.png');
+    candidates.push('assets/images/gallery/rubix-150x150.png');
     candidates.push('wp-content/uploads/2024/09/rubix-150x150.png');
   }
   if (decodedPath.includes('100-qu78lhr')) {
+    candidates.push('assets/images/uploads/elementor/thumbs/100-qu78lhra22qvf5b1aism5sewl6t0v45sdzkvyhtj9s.png');
     candidates.push('wp-content/uploads/elementor/thumbs/100-qu78lhra22qvf5b1aism5sewl6t0v45sdzkvyhtj9s.png');
   }
 
@@ -66,7 +204,6 @@ function findStaticFile(requestedUrl, requestedPath) {
     const base = path.basename(strippedPath);
     if (fs.existsSync(dir) && fs.statSync(dir).isDirectory()) {
       const files = fs.readdirSync(dir);
-      // exact match or stripped query match
       let match = files.find(f => f === base || f.split('?')[0] === base || f.split('%3F')[0] === base);
       if (!match) {
         match = files.find(f => f.startsWith(base + '?') || f.startsWith(base + '%3F') || f.startsWith(base));
