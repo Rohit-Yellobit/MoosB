@@ -1,0 +1,6 @@
+{
+  "name": "Moos B - Magician & Mentalist",
+  "description": "Portfolio website for Moos B, renowned mentalist and magician from Kerala with over 3,500 global shows.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

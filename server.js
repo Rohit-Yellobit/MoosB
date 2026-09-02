@@ -1,0 +1,169 @@
+import express from 'express';
+import path from 'path';
+import fs from 'fs';
+import { fileURLToPath } from 'url';
+import mime from 'mime-types';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+const app = express();
+const PORT = process.env.PORT || 3000;
+
+// Helper to find actual file on disk considering query params embedded in filenames
+function findStaticFile(requestedUrl, requestedPath) {
+  const decodedPath = decodeURIComponent(requestedPath).replace(/^\/+/, '');
+  const decodedUrl = decodeURIComponent(requestedUrl.split('#')[0]).replace(/^\/+/, '');
+  const rawUrl = requestedUrl.split('#')[0].replace(/^\/+/, '');
+
+  const candidates = [
+    decodedUrl,
+    rawUrl,
+    decodedPath,
+    decodedPath.split('?')[0],
+    decodedPath.split('%3F')[0],
+    decodedUrl.split('?')[0],
+    rawUrl.split('?')[0],
+    decodedPath.replace('/elementor/thumbs/', '/'),
+    path.join('wp-content/uploads/2024/09', path.basename(decodedPath.split('?')[0].split('%3F')[0]))
+  ];
+
+  if (decodedPath.includes('rubix-qu78yis')) {
+    candidates.push('wp-content/uploads/elementor/thumbs/rubix-qu78yisq23av74jrtvjrjiew8ioiuo5xy05xxjlre0.png');
+    candidates.push('wp-content/uploads/2024/09/rubix-150x150.png');
+  }
+  if (decodedPath.includes('100-qu78lhr')) {
+    candidates.push('wp-content/uploads/elementor/thumbs/100-qu78lhra22qvf5b1aism5sewl6t0v45sdzkvyhtj9s.png');
+  }
+
+  for (const candidate of candidates) {
+    if (!candidate) continue;
+    const fullPath = path.join(__dirname, candidate);
+    try {
+      if (fs.existsSync(fullPath) && fs.statSync(fullPath).isFile()) {
+        return fullPath;
+      }
+    } catch (e) {}
+  }
+
+  // Check directory for files matching base prefix or stripped query
+  try {
+    const strippedPath = decodedPath.split('?')[0].split('%3F')[0];
+    const dir = path.join(__dirname, path.dirname(strippedPath));
+    const base = path.basename(strippedPath);
+    if (fs.existsSync(dir) && fs.statSync(dir).isDirectory()) {
+      const files = fs.readdirSync(dir);
+      // exact match or stripped query match
+      let match = files.find(f => f === base || f.split('?')[0] === base || f.split('%3F')[0] === base);
+      if (!match) {
+        match = files.find(f => f.startsWith(base + '?') || f.startsWith(base + '%3F') || f.startsWith(base));
+      }
+      if (match) {
+        const fullPath = path.join(dir, match);
+        if (fs.statSync(fullPath).isFile()) {
+          return fullPath;
+        }
+      }
+    }
+  } catch (e) {}
+
+  return null;
+}
+
+// Custom static asset handler
+app.use((req, res, next) => {
+  if (req.method !== 'GET' && req.method !== 'HEAD') {
+    return next();
+  }
+
+  const cleanPath = decodeURIComponent(req.path);
+
+  // Exact root
+  if (cleanPath === '/' || cleanPath === '') {
+    return res.sendFile(path.join(__dirname, 'index.html'));
+  }
+
+  // Exact subfolder index
+  if (cleanPath === '/best-mentalist-magician-from-kerala' || cleanPath === '/best-mentalist-magician-from-kerala/') {
+    return res.sendFile(path.join(__dirname, 'best-mentalist-magician-from-kerala', 'index.html'));
+  }
+
+  const foundFile = findStaticFile(req.originalUrl, req.path);
+  if (foundFile) {
+    // Determine content type
+    let contentType = mime.lookup(foundFile);
+    if (!contentType) {
+      if (foundFile.includes('.css')) contentType = 'text/css';
+      else if (foundFile.includes('.js')) contentType = 'application/javascript';
+      else if (foundFile.includes('.svg')) contentType = 'image/svg+xml';
+      else if (foundFile.includes('.woff2')) contentType = 'font/woff2';
+      else if (foundFile.includes('.woff')) contentType = 'font/woff';
+      else if (foundFile.includes('.ttf')) contentType = 'font/ttf';
+      else if (foundFile.includes('.png')) contentType = 'image/png';
+      else if (foundFile.includes('.jpg') || foundFile.includes('.jpeg')) contentType = 'image/jpeg';
+      else if (foundFile.includes('.webp')) contentType = 'image/webp';
+    }
+
+    if (contentType) {
+      res.setHeader('Content-Type', contentType);
+    }
+    return res.sendFile(foundFile);
+  }
+
+  next();
+});
+
+// Fallback for missing assets to avoid returning index.html (which causes SyntaxError: Unexpected token '<')
+app.use((req, res, next) => {
+  const reqUrl = req.originalUrl || req.url || '';
+  const cleanPath = req.path || '';
+
+  // Handle missing JS or webpack bundles
+  if (cleanPath.endsWith('.js') || reqUrl.includes('.js')) {
+    res.setHeader('Content-Type', 'application/javascript');
+    
+    // Check if it's a webpack chunk request
+    return res.send(`
+      /* Webpack bundle fallback */
+      try {
+        if (typeof self !== 'undefined') {
+          self.webpackChunkelementor = self.webpackChunkelementor || [];
+          self.webpackChunkelementor.push([
+            [786, 557, 212, 177, 180, 121, 680, 85],
+            {}
+          ]);
+          self.webpackChunkelementorPro = self.webpackChunkelementorPro || [];
+          self.webpackChunkelementorPro.push([
+            [42, 924],
+            {}
+          ]);
+        }
+      } catch(e) {}
+    `);
+  }
+
+  // Handle missing CSS
+  if (cleanPath.endsWith('.css') || reqUrl.includes('.css')) {
+    res.setHeader('Content-Type', 'text/css');
+    return res.send('/* CSS fallback */');
+  }
+
+  // Handle missing images/fonts
+  if (
+    cleanPath.match(/\.(png|jpg|jpeg|gif|webp|svg|ico|woff|woff2|ttf|eot|mp4|webm|json)$/i) ||
+    reqUrl.match(/\.(png|jpg|jpeg|gif|webp|svg|ico|woff|woff2|ttf|eot|mp4|webm|json)(\?.*)?$/i)
+  ) {
+    return res.status(404).send('Asset not found');
+  }
+
+  next();
+});
+
+// Fallback for HTML navigation
+app.use((req, res) => {
+  res.sendFile(path.join(__dirname, 'index.html'));
+});
+
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`Server is running on http://0.0.0.0:${PORT}`);
+});
