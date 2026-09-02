@@ -1597,5 +1597,20 @@
     initBackgroundVideo();
     initAppearAnimations();
     initMotionEffects();
+    initDynamicCopyrightYear();
+  }
+
+  // Ensure copyright year is always dynamically current
+  function initDynamicCopyrightYear() {
+    const currentYear = new Date().getFullYear();
+    const yearEl = document.getElementById('moosb-current-year');
+    if (yearEl) {
+      yearEl.textContent = currentYear;
+    }
+    document.querySelectorAll('.elementor-element-a68d72a p, .elementor-element-f96404b p').forEach(function(p) {
+      if (p.textContent.includes('Copyright') || p.textContent.includes('All rights reserved')) {
+        p.innerHTML = `Copyright © <span id="moosb-current-year">${currentYear}</span> MoosB. All rights reserved.`;
+      }
+    });
   }
 })();

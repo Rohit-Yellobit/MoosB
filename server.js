@@ -24,7 +24,7 @@ let cachedGallery = {
 // Fallback local gallery images from assets/images/gallery
 function getLocalGalleryFallback() {
   const localDir = path.join(__dirname, 'assets/images/gallery');
-  const uploadsDir = path.join(__dirname, 'wp-content/uploads/2024/09');
+  const uploadsDir = path.join(__dirname, 'assets/images/uploads/2024/09');
   const targetDir = fs.existsSync(localDir) ? localDir : (fs.existsSync(uploadsDir) ? uploadsDir : null);
 
   if (!targetDir) return [];
@@ -143,21 +143,25 @@ function findStaticFile(requestedUrl, requestedPath) {
   const decodedUrl = decodeURIComponent(requestedUrl.split('#')[0]).replace(/^\/+/, '');
   const rawUrl = requestedUrl.split('#')[0].replace(/^\/+/, '');
 
-  // Alias mapping between assets/ and legacy wp-content/
+  // Alias mapping for modern clean structure
   const aliasedCandidates = [];
-  if (decodedPath.startsWith('assets/')) {
-    aliasedCandidates.push(decodedPath.replace(/^assets\/js\//, 'wp-content/js/'));
-    aliasedCandidates.push(decodedPath.replace(/^assets\/plugins\//, 'wp-content/plugins/'));
-    aliasedCandidates.push(decodedPath.replace(/^assets\/themes\//, 'wp-content/themes/'));
-    aliasedCandidates.push(decodedPath.replace(/^assets\/images\/gallery\//, 'wp-content/uploads/2024/09/'));
-    aliasedCandidates.push(decodedPath.replace(/^assets\/images\/uploads\//, 'wp-content/uploads/'));
-    aliasedCandidates.push(decodedPath.replace(/^assets\/vendor\//, 'wp-includes/'));
+  if (decodedPath.startsWith('assets/plugins/elementor/')) {
+    aliasedCandidates.push(decodedPath.replace(/^assets\/plugins\/elementor\//, 'assets/plugins/ui-core/'));
+  } else if (decodedPath.startsWith('assets/plugins/header-footer-elementor/')) {
+    aliasedCandidates.push(decodedPath.replace(/^assets\/plugins\/header-footer-elementor\//, 'assets/plugins/header-footer/'));
+  } else if (decodedPath.startsWith('assets/plugins/pro-elements/') || decodedPath.startsWith('assets/plugins/elementor-pro/')) {
+    aliasedCandidates.push(decodedPath.replace(/^assets\/plugins\/(pro-elements|elementor-pro)\//, 'assets/plugins/ui-pro/'));
+  } else if (decodedPath.startsWith('assets/images/uploads/elementor/')) {
+    aliasedCandidates.push(decodedPath.replace(/^assets\/images\/uploads\/elementor\//, 'assets/images/uploads/thumbnails/'));
   } else if (decodedPath.startsWith('wp-content/')) {
-    aliasedCandidates.push(decodedPath.replace(/^wp-content\/js\//, 'assets/js/'));
+    aliasedCandidates.push(decodedPath.replace(/^wp-content\/plugins\/elementor\//, 'assets/plugins/ui-core/'));
+    aliasedCandidates.push(decodedPath.replace(/^wp-content\/plugins\/header-footer-elementor\//, 'assets/plugins/header-footer/'));
     aliasedCandidates.push(decodedPath.replace(/^wp-content\/plugins\//, 'assets/plugins/'));
     aliasedCandidates.push(decodedPath.replace(/^wp-content\/themes\//, 'assets/themes/'));
     aliasedCandidates.push(decodedPath.replace(/^wp-content\/uploads\/2024\/09\//, 'assets/images/gallery/'));
+    aliasedCandidates.push(decodedPath.replace(/^wp-content\/uploads\/elementor\//, 'assets/images/uploads/thumbnails/'));
     aliasedCandidates.push(decodedPath.replace(/^wp-content\/uploads\//, 'assets/images/uploads/'));
+    aliasedCandidates.push(decodedPath.replace(/^wp-content\/js\//, 'assets/js/'));
   } else if (decodedPath.startsWith('wp-includes/')) {
     aliasedCandidates.push(decodedPath.replace(/^wp-includes\//, 'assets/vendor/'));
   }
@@ -171,20 +175,17 @@ function findStaticFile(requestedUrl, requestedPath) {
     decodedPath.split('%3F')[0],
     decodedUrl.split('?')[0],
     rawUrl.split('?')[0],
-    decodedPath.replace('/elementor/thumbs/', '/'),
+    decodedPath.replace('/elementor/thumbs/', '/thumbnails/thumbs/'),
     path.join('assets/images/gallery', path.basename(decodedPath.split('?')[0].split('%3F')[0])),
-    path.join('wp-content/uploads/2024/09', path.basename(decodedPath.split('?')[0].split('%3F')[0]))
+    path.join('assets/images/uploads/2024/09', path.basename(decodedPath.split('?')[0].split('%3F')[0]))
   ];
 
   if (decodedPath.includes('rubix-qu78yis')) {
-    candidates.push('assets/images/uploads/elementor/thumbs/rubix-qu78yisq23av74jrtvjrjiew8ioiuo5xy05xxjlre0.png');
-    candidates.push('wp-content/uploads/elementor/thumbs/rubix-qu78yisq23av74jrtvjrjiew8ioiuo5xy05xxjlre0.png');
+    candidates.push('assets/images/uploads/thumbnails/thumbs/rubix-qu78yisq23av74jrtvjrjiew8ioiuo5xy05xxjlre0.png');
     candidates.push('assets/images/gallery/rubix-150x150.png');
-    candidates.push('wp-content/uploads/2024/09/rubix-150x150.png');
   }
   if (decodedPath.includes('100-qu78lhr')) {
-    candidates.push('assets/images/uploads/elementor/thumbs/100-qu78lhra22qvf5b1aism5sewl6t0v45sdzkvyhtj9s.png');
-    candidates.push('wp-content/uploads/elementor/thumbs/100-qu78lhra22qvf5b1aism5sewl6t0v45sdzkvyhtj9s.png');
+    candidates.push('assets/images/uploads/thumbnails/thumbs/100-qu78lhra22qvf5b1aism5sewl6t0v45sdzkvyhtj9s.png');
   }
 
   for (const candidate of candidates) {
@@ -228,14 +229,9 @@ app.use((req, res, next) => {
 
   const cleanPath = decodeURIComponent(req.path);
 
-  // Exact root
-  if (cleanPath === '/' || cleanPath === '') {
+  // Exact root or old permalink paths
+  if (cleanPath === '/' || cleanPath === '' || cleanPath === '/best-mentalist-magician-from-kerala' || cleanPath === '/best-mentalist-magician-from-kerala/') {
     return res.sendFile(path.join(__dirname, 'index.html'));
-  }
-
-  // Exact subfolder index
-  if (cleanPath === '/best-mentalist-magician-from-kerala' || cleanPath === '/best-mentalist-magician-from-kerala/') {
-    return res.sendFile(path.join(__dirname, 'best-mentalist-magician-from-kerala', 'index.html'));
   }
 
   // Built-in WordPress hooks and i18n handler (failsafe if file is deleted)
