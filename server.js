@@ -4,6 +4,7 @@ import fs from 'fs';
 import https from 'https';
 import { fileURLToPath } from 'url';
 import mime from 'mime-types';
+import nodemailer from 'nodemailer';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -13,6 +14,56 @@ const PORT = process.env.PORT || 3000;
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+// Email Transporter (Lazy Initialized)
+let mailTransporter = null;
+
+function getMailTransporter() {
+  const smtpUser = process.env.SMTP_USER;
+  const smtpPass = process.env.SMTP_PASS;
+
+  if (!smtpUser || !smtpPass) {
+    return null;
+  }
+
+  if (!mailTransporter) {
+    const port = parseInt(process.env.SMTP_PORT || '587', 10);
+    const isSecure = process.env.SMTP_SECURE === 'true' || port === 465;
+    const host = process.env.SMTP_HOST || 'smtp.gmail.com';
+
+    mailTransporter = nodemailer.createTransport({
+      host: host,
+      port: port,
+      secure: isSecure,
+      auth: {
+        user: smtpUser,
+        pass: smtpPass
+      },
+      tls: {
+        rejectUnauthorized: false
+      }
+    });
+  }
+
+  return mailTransporter;
+}
+
+// Persist inquiries locally as failsafe backup
+const SUBMISSIONS_FILE = path.join(__dirname, 'submissions.json');
+
+function saveSubmissionLocally(entry) {
+  try {
+    let list = [];
+    if (fs.existsSync(SUBMISSIONS_FILE)) {
+      const content = fs.readFileSync(SUBMISSIONS_FILE, 'utf8');
+      list = JSON.parse(content || '[]');
+    }
+    list.unshift(entry);
+    fs.writeFileSync(SUBMISSIONS_FILE, JSON.stringify(list.slice(0, 500), null, 2), 'utf8');
+  } catch (err) {
+    console.error('Could not write submission to backup file:', err.message);
+  }
+}
 
 // Google Drive Gallery Folder Integration
 const GOOGLE_DRIVE_FOLDER_ID = '1kAaaDLnv0cHPJ0QQKDcprOtA96Wpy873';
@@ -127,15 +178,200 @@ app.get('/api/gallery', async (req, res) => {
   }
 });
 
-// API route for contact form submissions
-app.post('/api/contact', (req, res) => {
-  const { form_fields } = req.body || {};
-  console.log('Contact form submission received:', req.body);
-  res.status(200).json({
-    success: true,
-    message: 'Thank you! Your message has been received.'
-  });
+// API route for contact form submissions & email delivery
+app.post('/api/contact', async (req, res) => {
+  try {
+    const rawData = req.body || {};
+    const formFields = rawData.form_fields || rawData;
+
+    // Normalize field names across various submission formats
+    const name = (formFields.name || formFields['form-field-name'] || formFields['form_fields[name]'] || 'Valued Visitor').trim();
+    const email = (formFields.email || formFields['form-field-email'] || formFields['form_fields[email]'] || '').trim();
+    const phone = (formFields.field_fe7417f || formFields['form-field-field_fe7417f'] || formFields['form_fields[field_fe7417f]'] || formFields.phone || formFields.mobile || '').trim();
+    const message = (formFields.message || formFields['form-field-message'] || formFields['form_fields[message]'] || '').trim();
+    const timestamp = new Date().toLocaleString('en-US', { timeZone: 'Asia/Kolkata', dateStyle: 'full', timeStyle: 'medium' });
+
+    if (!email && !phone) {
+      return res.status(400).json({
+        success: false,
+        message: 'Please provide an email address or mobile number so we can reach you.'
+      });
+    }
+
+    const submissionEntry = {
+      id: `sub_${Date.now()}`,
+      name,
+      email,
+      phone,
+      message,
+      submittedAt: new Date().toISOString(),
+      formattedTime: timestamp,
+      userAgent: req.headers['user-agent'] || 'Unknown'
+    };
+
+    // 1. Always save to local backup store
+    saveSubmissionLocally(submissionEntry);
+    console.log(`[Contact Form] New booking inquiry received from "${name}" <${email}> (${phone})`);
+
+    // 2. Email Notification Dispatch
+    const transporter = getMailTransporter();
+    const receiverEmail = process.env.CONTACT_RECEIVER_EMAIL || 'moosshibi@gmail.com';
+    const senderEmail = process.env.CONTACT_SENDER_EMAIL || process.env.SMTP_USER || `Moos B Official <${receiverEmail}>`;
+
+    if (transporter) {
+      const cleanPhone = phone.replace(/[^0-9+]/g, '');
+      const waLink = cleanPhone ? `https://wa.me/${cleanPhone.startsWith('+') ? cleanPhone.slice(1) : cleanPhone}` : null;
+
+      // Admin Email Template
+      const adminMailHtml = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="utf-8">
+          <style>
+            body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #0c1017; margin: 0; padding: 24px; color: #f3f4f6; }
+            .card { max-width: 600px; margin: 0 auto; background: #121824; border: 1px solid rgba(243, 223, 186, 0.25); border-radius: 12px; overflow: hidden; box-shadow: 0 16px 40px rgba(0,0,0,0.6); }
+            .header { background: radial-gradient(circle at center, #1e293b 0%, #0c1017 100%); padding: 32px 24px; text-align: center; border-bottom: 1px solid rgba(243, 223, 186, 0.2); }
+            .badge { display: inline-block; background: rgba(243, 223, 186, 0.15); color: #f3dfba; padding: 4px 14px; border-radius: 20px; font-size: 11px; letter-spacing: 2px; text-transform: uppercase; font-weight: 700; margin-bottom: 8px; border: 1px solid rgba(243, 223, 186, 0.3); }
+            .title { color: #f3dfba; margin: 0; font-size: 24px; font-weight: 600; letter-spacing: 0.5px; }
+            .content { padding: 32px 28px; }
+            .field-row { margin-bottom: 20px; padding-bottom: 14px; border-bottom: 1px solid rgba(255,255,255,0.06); }
+            .field-label { font-size: 11px; color: #94a3b8; text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 4px; font-weight: 600; }
+            .field-value { font-size: 16px; color: #ffffff; font-weight: 500; }
+            .message-box { background: rgba(0,0,0,0.35); border-left: 3px solid #f3dfba; padding: 16px 18px; border-radius: 0 8px 8px 0; color: #e2e8f0; font-style: italic; margin-top: 6px; line-height: 1.6; }
+            .actions { margin-top: 28px; text-align: center; }
+            .btn { display: inline-block; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: 600; font-size: 14px; margin: 6px; transition: 0.2s ease; }
+            .btn-gold { background: linear-gradient(135deg, #f3dfba, #c59b68); color: #080b10; }
+            .btn-wa { background: #25D366; color: #ffffff; }
+            .footer { background: #080b10; padding: 16px; text-align: center; font-size: 12px; color: #64748b; border-top: 1px solid rgba(255,255,255,0.05); }
+          </style>
+        </head>
+        <body>
+          <div class="card">
+            <div class="header">
+              <span class="badge">Live Event Inquiry</span>
+              <h1 class="title">New Booking Request</h1>
+            </div>
+            <div class="content">
+              <div class="field-row">
+                <div class="field-label">Client Name</div>
+                <div class="field-value">${name}</div>
+              </div>
+              <div class="field-row">
+                <div class="field-label">Email Address</div>
+                <div class="field-value"><a href="mailto:${email}" style="color: #f3dfba; text-decoration: none;">${email || 'Not provided'}</a></div>
+              </div>
+              <div class="field-row">
+                <div class="field-label">Mobile Number</div>
+                <div class="field-value"><a href="tel:${phone}" style="color: #f3dfba; text-decoration: none;">${phone || 'Not provided'}</a></div>
+              </div>
+              <div class="field-row" style="border-bottom: none;">
+                <div class="field-label">Event Details / Message</div>
+                <div class="message-box">${message ? message.replace(/\n/g, '<br>') : 'No specific message entered.'}</div>
+              </div>
+              <div class="actions">
+                ${email ? `<a href="mailto:${email}?subject=Booking%20Inquiry%20Response%20-%20Moos%20B" class="btn btn-gold">Reply via Email</a>` : ''}
+                ${waLink ? `<a href="${waLink}" class="btn btn-wa">Open in WhatsApp</a>` : ''}
+              </div>
+            </div>
+            <div class="footer">
+              Received on ${timestamp} (IST) • Moos B Live Inquiries
+            </div>
+          </div>
+        </body>
+        </html>
+      `;
+
+      // Dispatch notification email to Moos B / Admin
+      await transporter.sendMail({
+        from: `"${name} (via Moos B Website)" <${senderEmail}>`,
+        to: receiverEmail,
+        replyTo: email || undefined,
+        subject: `✨ New Booking Inquiry from ${name}`,
+        text: `New Booking Inquiry:\nName: ${name}\nEmail: ${email}\nPhone: ${phone}\nMessage: ${message}\nTime: ${timestamp}`,
+        html: adminMailHtml
+      });
+
+      console.log(`[Contact Form] Email notification sent successfully to ${receiverEmail}`);
+
+      // If user provided a valid email, send them an automated luxury acknowledgment
+      if (email && email.includes('@')) {
+        try {
+          const clientMailHtml = `
+            <!DOCTYPE html>
+            <html>
+            <head>
+              <meta charset="utf-8">
+              <style>
+                body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #0c1017; margin: 0; padding: 24px; color: #f3f4f6; }
+                .card { max-width: 580px; margin: 0 auto; background: #121824; border: 1px solid rgba(243, 223, 186, 0.25); border-radius: 12px; overflow: hidden; box-shadow: 0 16px 40px rgba(0,0,0,0.6); }
+                .header { background: radial-gradient(circle at center, #1e293b 0%, #0c1017 100%); padding: 32px 24px; text-align: center; border-bottom: 1px solid rgba(243, 223, 186, 0.2); }
+                .title { color: #f3dfba; margin: 8px 0 0 0; font-size: 22px; font-weight: 600; }
+                .content { padding: 30px 24px; line-height: 1.6; color: #cbd5e1; font-size: 15px; }
+                .gold-text { color: #f3dfba; font-weight: 600; }
+                .summary-box { background: rgba(0,0,0,0.4); border: 1px solid rgba(243, 223, 186, 0.15); border-radius: 8px; padding: 18px; margin: 20px 0; font-size: 14px; }
+                .contact-line { margin-top: 18px; font-size: 14px; color: #94a3b8; }
+                .footer { background: #080b10; padding: 16px; text-align: center; font-size: 12px; color: #64748b; border-top: 1px solid rgba(255,255,255,0.05); }
+              </style>
+            </head>
+            <body>
+              <div class="card">
+                <div class="header">
+                  <h1 class="title">Thank You for Connecting</h1>
+                </div>
+                <div class="content">
+                  <p>Dear <span class="gold-text">${name}</span>,</p>
+                  <p>We have received your event inquiry. Thank you for your interest in bringing the enchanting experience of <strong>Moos B</strong> to your celebration.</p>
+                  <p>Our team is reviewing your request and will connect with you shortly with availability and performance details.</p>
+                  
+                  <div class="summary-box">
+                    <div style="color: #f3dfba; font-weight: 600; margin-bottom: 8px;">Your Submitted Details:</div>
+                    <div><strong>Mobile:</strong> ${phone || '—'}</div>
+                    ${message ? `<div style="margin-top: 6px;"><strong>Note:</strong> ${message}</div>` : ''}
+                  </div>
+
+                  <div class="contact-line">
+                    Need immediate assistance? You can reach us directly at <span class="gold-text">+91 8138833005</span> / <span class="gold-text">+91 9946860659</span> or reply to this email.
+                  </div>
+                </div>
+                <div class="footer">
+                  © ${new Date().getFullYear()} Moos B. Best Mentalist & Magician from Kerala | Global Performer
+                </div>
+              </div>
+            </body>
+            </html>
+          `;
+
+          await transporter.sendMail({
+            from: `"Moos B" <${senderEmail}>`,
+            to: email,
+            subject: `✨ We've Received Your Inquiry — Moos B`,
+            text: `Dear ${name},\n\nThank you for reaching out to Moos B! We have received your inquiry and our team will get in touch with you shortly.\n\nDirect Contact: +91 8138833005 / +91 9946860659\nEmail: moosshibi@gmail.com\n\nWarm regards,\nMoos B Team`,
+            html: clientMailHtml
+          });
+          console.log(`[Contact Form] Confirmation email sent to client <${email}>`);
+        } catch (clientErr) {
+          console.warn('[Contact Form] Client confirmation mail notice:', clientErr.message);
+        }
+      }
+    } else {
+      console.log('[Contact Form] Note: SMTP credentials (SMTP_USER / SMTP_PASS) not configured. Inquiry safely preserved in submissions.json.');
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: 'Thank you! Your message has been sent successfully. We will get in touch with you soon.'
+    });
+
+  } catch (err) {
+    console.error('[Contact Form] Error handling submission:', err);
+    return res.status(500).json({
+      success: false,
+      message: 'There was a temporary issue processing your request. Please try again or call 8138833005.'
+    });
+  }
 });
+
 
 // Helper to find actual file on disk considering query params embedded in filenames and aliases
 function findStaticFile(requestedUrl, requestedPath) {

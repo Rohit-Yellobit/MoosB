@@ -1086,7 +1086,7 @@
         // UI Loading state
         if (submitBtn) {
           submitBtn.disabled = true;
-          submitBtn.innerHTML = '<span>Sending...</span>';
+          submitBtn.innerHTML = '<span style="display:inline-flex;align-items:center;gap:8px;"><svg style="animation:spin 1s linear infinite;width:16px;height:16px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10" stroke-dasharray="32" stroke-dashoffset="12"></circle></svg> Sending Inquiry...</span>';
         }
 
         // Show feedback message container
@@ -1094,6 +1094,7 @@
         if (!msgBox) {
           msgBox = document.createElement('div');
           msgBox.className = 'elementor-message';
+          msgBox.style.cssText = 'margin-top: 16px; padding: 14px 18px; border-radius: 8px; font-size: 14px; font-weight: 500; line-height: 1.5; transition: all 0.3s ease; text-align: center;';
           form.appendChild(msgBox);
         }
 
@@ -1109,22 +1110,25 @@
 
           const result = await response.json();
 
-          if (response.ok) {
+          if (response.ok && result.success) {
             msgBox.className = 'elementor-message elementor-message-success';
-            msgBox.textContent = result.message || 'The form was sent successfully.';
-            msgBox.style.display = 'block';
+            msgBox.style.cssText += 'background: rgba(16, 185, 129, 0.12); border: 1px solid rgba(16, 185, 129, 0.4); color: #34d399; display: block;';
+            msgBox.innerHTML = `✨ <strong>Thank You!</strong> ${result.message || 'Your inquiry has been sent to Moos B. We will connect with you shortly.'}`;
             form.reset();
           } else {
             throw new Error(result.message || 'Submission failed');
           }
         } catch (err) {
           msgBox.className = 'elementor-message elementor-message-danger';
-          msgBox.textContent = 'An error occurred. Please try again or reach out via WhatsApp.';
-          msgBox.style.display = 'block';
+          msgBox.style.cssText += 'background: rgba(239, 68, 68, 0.12); border: 1px solid rgba(239, 68, 68, 0.4); color: #f87171; display: block;';
+          msgBox.innerHTML = `⚠️ ${err.message || 'An error occurred. Please try again or reach out directly via call/WhatsApp at 8138833005.'}`;
         } finally {
           if (submitBtn) {
             submitBtn.disabled = false;
             submitBtn.innerHTML = originalBtnText;
+          }
+          if (msgBox) {
+            msgBox.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
           }
         }
       });

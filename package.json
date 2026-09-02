@@ -9,6 +9,7 @@
   },
   "dependencies": {
     "express": "^5.2.1",
-    "mime-types": "^3.0.2"
+    "mime-types": "^3.0.2",
+    "nodemailer": "^9.1.1"
   }
 }
