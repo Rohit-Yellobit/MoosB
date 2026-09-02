@@ -10,6 +10,19 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
+// API route for contact form submissions
+app.post('/api/contact', (req, res) => {
+  const { form_fields } = req.body || {};
+  console.log('Contact form submission received:', req.body);
+  res.status(200).json({
+    success: true,
+    message: 'Thank you! Your message has been received.'
+  });
+});
+
 // Helper to find actual file on disk considering query params embedded in filenames
 function findStaticFile(requestedUrl, requestedPath) {
   const decodedPath = decodeURIComponent(requestedPath).replace(/^\/+/, '');
@@ -88,6 +101,85 @@ app.use((req, res, next) => {
     return res.sendFile(path.join(__dirname, 'best-mentalist-magician-from-kerala', 'index.html'));
   }
 
+  // Built-in WordPress hooks and i18n handler (failsafe if file is deleted)
+  if (cleanPath.includes('hooks.min.js') || req.originalUrl.includes('hooks.min.js')) {
+    res.setHeader('Content-Type', 'application/javascript');
+    return res.send(`
+      window.wp = window.wp || {};
+      (function() {
+        function createHooks() {
+          var actions = {}, filters = {};
+          function addHook(hooks, hookName, namespace, callback, priority) {
+            priority = priority || 10;
+            hooks[hookName] = hooks[hookName] || [];
+            hooks[hookName].push({ namespace: namespace, callback: callback, priority: priority });
+            hooks[hookName].sort(function(a, b) { return a.priority - b.priority; });
+          }
+          function removeHook(hooks, hookName, namespace) {
+            if (!hooks[hookName]) return;
+            if (namespace) hooks[hookName] = hooks[hookName].filter(function(h) { return h.namespace !== namespace; });
+            else delete hooks[hookName];
+          }
+          function hasHook(hooks, hookName, namespace) {
+            if (!hooks[hookName] || !hooks[hookName].length) return false;
+            if (!namespace) return true;
+            return hooks[hookName].some(function(h) { return h.namespace === namespace; });
+          }
+          return {
+            addAction: function(n, ns, cb, p) { addHook(actions, n, ns, cb, p); },
+            addFilter: function(n, ns, cb, p) { addHook(filters, n, ns, cb, p); },
+            removeAction: function(n, ns) { removeHook(actions, n, ns); },
+            removeFilter: function(n, ns) { removeHook(filters, n, ns); },
+            hasAction: function(n, ns) { return hasHook(actions, n, ns); },
+            hasFilter: function(n, ns) { return hasHook(filters, n, ns); },
+            doAction: function(n) {
+              var args = Array.prototype.slice.call(arguments, 1);
+              var h = actions[n] || [];
+              for (var i = 0; i < h.length; i++) {
+                try { h[i].callback.apply(null, args); } catch (e) {}
+              }
+            },
+            applyFilters: function(n, val) {
+              var args = Array.prototype.slice.call(arguments, 1);
+              var h = filters[n] || [];
+              var v = val;
+              for (var i = 0; i < h.length; i++) {
+                try { args[0] = v; v = h[i].callback.apply(null, args); } catch (e) {}
+              }
+              return v;
+            },
+            createHooks: createHooks
+          };
+        }
+        window.wp.hooks = createHooks();
+      })();
+    `);
+  }
+
+  if (cleanPath.includes('i18n.min.js') || req.originalUrl.includes('i18n.min.js')) {
+    res.setHeader('Content-Type', 'application/javascript');
+    return res.send(`
+      window.wp = window.wp || {};
+      (function() {
+        var localeData = {};
+        window.wp.i18n = {
+          setLocaleData: function(d, dom) { localeData[dom || 'default'] = Object.assign(localeData[dom || 'default'] || {}, d); },
+          getLocaleData: function(dom) { return localeData[dom || 'default'] || {}; },
+          __: function(t) { return t; },
+          _x: function(t) { return t; },
+          _n: function(s, p, n) { return n === 1 ? s : p; },
+          _nx: function(s, p, n) { return n === 1 ? s : p; },
+          isRTL: function() { return false; },
+          sprintf: function(f) {
+            var args = Array.prototype.slice.call(arguments, 1), i = 0;
+            return f.replace(/%[sfd]/g, function() { return args[i++] !== undefined ? args[i - 1] : ''; });
+          },
+          hasTranslation: function() { return false; }
+        };
+      })();
+    `);
+  }
+
   const foundFile = findStaticFile(req.originalUrl, req.path);
   if (foundFile) {
     // Determine content type
@@ -122,21 +214,17 @@ app.use((req, res, next) => {
   if (cleanPath.endsWith('.js') || reqUrl.includes('.js')) {
     res.setHeader('Content-Type', 'application/javascript');
     
-    // Check if it's a webpack chunk request
+    // Webpack chunk fallback response registering all chunk IDs
     return res.send(`
       /* Webpack bundle fallback */
       try {
         if (typeof self !== 'undefined') {
+          var eChunks = [786, 216, 30, 131, 707, 457, 234, 575, 775, 180, 177, 212, 211, 215, 915, 1, 336, 557, 396, 768, 77, 220, 304];
+          var proChunks = [714, 721, 256, 699, 156, 241, 26, 534, 369, 804, 888, 680, 121, 288, 42, 50, 985, 287, 824, 58, 114, 443, 838, 685, 858, 102, 1, 124, 859, 979, 497, 800, 149, 153, 356, 495, 157, 244, 209, 188, 725, 8, 322, 464];
           self.webpackChunkelementor = self.webpackChunkelementor || [];
-          self.webpackChunkelementor.push([
-            [786, 557, 212, 177, 180, 121, 680, 85],
-            {}
-          ]);
+          self.webpackChunkelementor.push([eChunks, {}]);
           self.webpackChunkelementorPro = self.webpackChunkelementorPro || [];
-          self.webpackChunkelementorPro.push([
-            [42, 924],
-            {}
-          ]);
+          self.webpackChunkelementorPro.push([proChunks, {}]);
         }
       } catch(e) {}
     `);
