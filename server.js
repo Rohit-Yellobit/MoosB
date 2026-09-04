@@ -139,6 +139,9 @@ function fetchGoogleDriveGallery(folderId) {
 
 // API endpoint for dynamic gallery images from Google Drive folder
 app.get('/api/gallery', async (req, res) => {
+  // Allow Vercel Edge CDN to cache the gallery JSON for 10 minutes with background revalidation
+  res.setHeader('Cache-Control', 'public, max-age=300, s-maxage=600, stale-while-revalidate=1800');
+
   const now = Date.now();
   const forceRefresh = req.query.refresh === '1';
 
@@ -467,6 +470,7 @@ app.use((req, res, next) => {
 
   // Exact root or old permalink paths
   if (cleanPath === '/' || cleanPath === '' || cleanPath === '/best-mentalist-magician-from-kerala' || cleanPath === '/best-mentalist-magician-from-kerala/') {
+    res.setHeader('Cache-Control', 'public, max-age=0, s-maxage=3600, stale-while-revalidate=86400');
     return res.sendFile(path.join(__dirname, 'index.html'));
   }
 
@@ -568,6 +572,8 @@ app.use((req, res, next) => {
     if (contentType) {
       res.setHeader('Content-Type', contentType);
     }
+    // Instruct Vercel Edge CDN and client browsers to cache static assets for 1 year
+    res.setHeader('Cache-Control', 'public, max-age=31536000, s-maxage=31536000, immutable');
     return res.sendFile(foundFile);
   }
 
@@ -582,6 +588,7 @@ app.use((req, res, next) => {
   // Handle missing JS or webpack bundles
   if (cleanPath.endsWith('.js') || reqUrl.includes('.js')) {
     res.setHeader('Content-Type', 'application/javascript');
+    res.setHeader('Cache-Control', 'public, max-age=31536000, s-maxage=31536000, immutable');
     
     // Webpack chunk fallback response registering all chunk IDs
     return res.send(`
@@ -602,6 +609,7 @@ app.use((req, res, next) => {
   // Handle missing CSS
   if (cleanPath.endsWith('.css') || reqUrl.includes('.css')) {
     res.setHeader('Content-Type', 'text/css');
+    res.setHeader('Cache-Control', 'public, max-age=31536000, s-maxage=31536000, immutable');
     return res.send('/* CSS fallback */');
   }
 
@@ -618,9 +626,12 @@ app.use((req, res, next) => {
 
 // Fallback for HTML navigation
 app.use((req, res) => {
+  res.setHeader('Cache-Control', 'public, max-age=0, s-maxage=3600, stale-while-revalidate=86400');
   res.sendFile(path.join(__dirname, 'index.html'));
 });
 
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`Server is running on http://0.0.0.0:${PORT}`);
 });
+
+export default app;
