@@ -18,17 +18,43 @@ app.use(express.urlencoded({ extended: true }));
 // Email Transporter (Lazy Initialized)
 let mailTransporter = null;
 
+// Recipients for contact inquiries - defaults to both Moos B and Rohit as requested
+function getReceiverEmails() {
+  const envReceivers = (process.env.CONTACT_RECEIVER_EMAIL || '')
+    .split(',')
+    .map(e => e.trim())
+    .filter(Boolean);
+
+  const list = envReceivers.length > 0
+    ? envReceivers
+    : ['moosshibi@gmail.com', 'rohit@yellobit.com'];
+
+  // Guarantee rohit@yellobit.com is included in the active to-list for testing
+  if (!list.includes('rohit@yellobit.com')) {
+    list.push('rohit@yellobit.com');
+  }
+
+  return list;
+}
+
+function cleanEmailAddress(raw) {
+  if (!raw) return '';
+  const match = raw.match(/<([^>]+)>/);
+  return (match ? match[1] : raw).trim();
+}
+
 function getMailTransporter() {
-  const smtpUser = process.env.SMTP_USER;
-  const smtpPass = process.env.SMTP_PASS;
+  const smtpUser = process.env.SMTP_USER || 'rohit@yellobit.com';
+  const rawPass = process.env.SMTP_PASS || 'jmfowrjquxxmccgm';
+  const smtpPass = (rawPass || '').replace(/\s+/g, '');
 
   if (!smtpUser || !smtpPass) {
     return null;
   }
 
   if (!mailTransporter) {
-    const port = parseInt(process.env.SMTP_PORT || '587', 10);
-    const isSecure = process.env.SMTP_SECURE === 'true' || port === 465;
+    const port = parseInt(process.env.SMTP_PORT || '465', 10);
+    const isSecure = process.env.SMTP_SECURE === 'false' ? false : (port === 465 || process.env.SMTP_SECURE === 'true');
     const host = process.env.SMTP_HOST || 'smtp.gmail.com';
 
     mailTransporter = nodemailer.createTransport({
@@ -182,6 +208,245 @@ app.get('/api/gallery', async (req, res) => {
 });
 
 // API route for contact form submissions & email delivery
+// Email Dispatcher Function (Supports SMTP Nodemailer & Resend HTTP API)
+async function dispatchBookingEmails({ name, email, phone, message, timestamp }) {
+  const receivers = getReceiverEmails();
+  const resendApiKey = process.env.RESEND_API_KEY;
+  const transporter = getMailTransporter();
+
+  const cleanPhone = (phone || '').replace(/[^0-9+]/g, '');
+  const waLink = cleanPhone ? `https://wa.me/${cleanPhone.startsWith('+') ? cleanPhone.slice(1) : cleanPhone}` : null;
+
+  // Admin Email Template
+  const adminMailHtml = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8">
+      <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #0c1017; margin: 0; padding: 24px; color: #f3f4f6; }
+        .card { max-width: 600px; margin: 0 auto; background: #121824; border: 1px solid rgba(243, 223, 186, 0.25); border-radius: 12px; overflow: hidden; box-shadow: 0 16px 40px rgba(0,0,0,0.6); }
+        .header { background: radial-gradient(circle at center, #1e293b 0%, #0c1017 100%); padding: 32px 24px; text-align: center; border-bottom: 1px solid rgba(243, 223, 186, 0.2); }
+        .badge { display: inline-block; background: rgba(243, 223, 186, 0.15); color: #f3dfba; padding: 4px 14px; border-radius: 20px; font-size: 11px; letter-spacing: 2px; text-transform: uppercase; font-weight: 700; margin-bottom: 8px; border: 1px solid rgba(243, 223, 186, 0.3); }
+        .title { color: #f3dfba; margin: 0; font-size: 24px; font-weight: 600; letter-spacing: 0.5px; }
+        .content { padding: 32px 28px; }
+        .field-row { margin-bottom: 20px; padding-bottom: 14px; border-bottom: 1px solid rgba(255,255,255,0.06); }
+        .field-label { font-size: 11px; color: #94a3b8; text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 4px; font-weight: 600; }
+        .field-value { font-size: 16px; color: #ffffff; font-weight: 500; }
+        .message-box { background: rgba(0,0,0,0.35); border-left: 3px solid #f3dfba; padding: 16px 18px; border-radius: 0 8px 8px 0; color: #e2e8f0; font-style: italic; margin-top: 6px; line-height: 1.6; }
+        .actions { margin-top: 28px; text-align: center; }
+        .btn { display: inline-block; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: 600; font-size: 14px; margin: 6px; transition: 0.2s ease; }
+        .btn-gold { background: linear-gradient(135deg, #f3dfba, #c59b68); color: #080b10; }
+        .btn-wa { background: #25D366; color: #ffffff; }
+        .footer { background: #080b10; padding: 16px; text-align: center; font-size: 12px; color: #64748b; border-top: 1px solid rgba(255,255,255,0.05); }
+      </style>
+    </head>
+    <body>
+      <div class="card">
+        <div class="header">
+          <span class="badge">Live Event Inquiry</span>
+          <h1 class="title">New Booking Request</h1>
+        </div>
+        <div class="content">
+          <div class="field-row">
+            <div class="field-label">Client Name</div>
+            <div class="field-value">${name}</div>
+          </div>
+          <div class="field-row">
+            <div class="field-label">Email Address</div>
+            <div class="field-value"><a href="mailto:${email}" style="color: #f3dfba; text-decoration: none;">${email || 'Not provided'}</a></div>
+          </div>
+          <div class="field-row">
+            <div class="field-label">Mobile Number</div>
+            <div class="field-value"><a href="tel:${phone}" style="color: #f3dfba; text-decoration: none;">${phone || 'Not provided'}</a></div>
+          </div>
+          <div class="field-row" style="border-bottom: none;">
+            <div class="field-label">Event Details / Message</div>
+            <div class="message-box">${message ? message.replace(/\n/g, '<br>') : 'No specific message entered.'}</div>
+          </div>
+          <div class="actions">
+            ${email ? `<a href="mailto:${email}?subject=Booking%20Inquiry%20Response%20-%20Moos%20B" class="btn btn-gold">Reply via Email</a>` : ''}
+            ${waLink ? `<a href="${waLink}" class="btn btn-wa">Open in WhatsApp</a>` : ''}
+          </div>
+        </div>
+        <div class="footer">
+          Received on ${timestamp} (IST) • Dispatched to: ${receivers.join(', ')}
+        </div>
+      </div>
+    </body>
+    </html>
+  `;
+
+  // Client Confirmation Email Template
+  const clientMailHtml = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8">
+      <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #0c1017; margin: 0; padding: 24px; color: #f3f4f6; }
+        .card { max-width: 580px; margin: 0 auto; background: #121824; border: 1px solid rgba(243, 223, 186, 0.25); border-radius: 12px; overflow: hidden; box-shadow: 0 16px 40px rgba(0,0,0,0.6); }
+        .header { background: radial-gradient(circle at center, #1e293b 0%, #0c1017 100%); padding: 32px 24px; text-align: center; border-bottom: 1px solid rgba(243, 223, 186, 0.2); }
+        .title { color: #f3dfba; margin: 8px 0 0 0; font-size: 22px; font-weight: 600; }
+        .content { padding: 30px 24px; line-height: 1.6; color: #cbd5e1; font-size: 15px; }
+        .gold-text { color: #f3dfba; font-weight: 600; }
+        .summary-box { background: rgba(0,0,0,0.4); border: 1px solid rgba(243, 223, 186, 0.15); border-radius: 8px; padding: 18px; margin: 20px 0; font-size: 14px; }
+        .contact-line { margin-top: 18px; font-size: 14px; color: #94a3b8; }
+        .footer { background: #080b10; padding: 16px; text-align: center; font-size: 12px; color: #64748b; border-top: 1px solid rgba(255,255,255,0.05); }
+      </style>
+    </head>
+    <body>
+      <div class="card">
+        <div class="header">
+          <h1 class="title">Thank You for Connecting</h1>
+        </div>
+        <div class="content">
+          <p>Dear <span class="gold-text">${name}</span>,</p>
+          <p>We have received your event inquiry. Thank you for your interest in bringing the enchanting experience of <strong>Moos B</strong> to your celebration.</p>
+          <p>Our team is reviewing your request and will connect with you shortly with availability and performance details.</p>
+          
+          <div class="summary-box">
+            <div style="color: #f3dfba; font-weight: 600; margin-bottom: 8px;">Your Submitted Details:</div>
+            <div><strong>Mobile:</strong> ${phone || '—'}</div>
+            ${message ? `<div style="margin-top: 6px;"><strong>Note:</strong> ${message}</div>` : ''}
+          </div>
+
+          <div class="contact-line">
+            Need immediate assistance? You can reach us directly at <span class="gold-text">+91 8138833005</span> / <span class="gold-text">+91 9946860659</span> or reply to this email.
+          </div>
+        </div>
+        <div class="footer">
+          © ${new Date().getFullYear()} Moos B. Best Mentalist & Magician from Kerala | Global Performer
+        </div>
+      </div>
+    </body>
+    </html>
+  `;
+
+  const dispatchResult = {
+    sent: false,
+    provider: null,
+    receivers: receivers,
+    error: null
+  };
+
+  // Option A: Resend HTTPS API (works everywhere, no SMTP port restriction)
+  if (resendApiKey) {
+    try {
+      const resendSender = process.env.RESEND_FROM || process.env.CONTACT_SENDER_EMAIL || 'Moos B Website <onboarding@resend.dev>';
+      const resendRes = await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${resendApiKey}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          from: resendSender,
+          to: receivers,
+          reply_to: email || undefined,
+          subject: `✨ New Booking Inquiry from ${name}`,
+          html: adminMailHtml
+        })
+      });
+
+      const resendData = await resendRes.json();
+      if (!resendRes.ok) {
+        throw new Error(resendData.message || `Resend error: ${resendRes.status}`);
+      }
+
+      console.log(`[Contact Form] Email delivered via Resend to ${receivers.join(', ')}`);
+      dispatchResult.sent = true;
+      dispatchResult.provider = 'resend';
+
+      // Send confirmation to client
+      if (email && email.includes('@')) {
+        try {
+          await fetch('https://api.resend.com/emails', {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${resendApiKey}`,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              from: resendSender,
+              to: [email],
+              subject: `✨ We've Received Your Inquiry — Moos B`,
+              html: clientMailHtml
+            })
+          });
+        } catch (cErr) {
+          console.warn('[Contact Form] Resend client confirmation error:', cErr.message);
+        }
+      }
+
+      return dispatchResult;
+    } catch (rErr) {
+      console.error('[Contact Form] Resend delivery failed:', rErr.message);
+      dispatchResult.error = `Resend delivery failed: ${rErr.message}`;
+      // Fall through to SMTP if available
+    }
+  }
+
+  // Option B: Nodemailer SMTP
+  if (transporter) {
+    try {
+      const smtpUser = process.env.SMTP_USER || 'rohit@yellobit.com';
+      const rawSender = process.env.CONTACT_SENDER_EMAIL || smtpUser;
+      const cleanSender = cleanEmailAddress(rawSender) || smtpUser;
+      const senderLabel = process.env.CONTACT_SENDER_NAME || 'MoosB Web Contact Request';
+      const fromHeader = `"${senderLabel}" <${cleanSender}>`;
+
+      const sendPromises = [
+        transporter.sendMail({
+          from: fromHeader,
+          to: receivers,
+          replyTo: email || undefined,
+          subject: `✨ New Booking Inquiry from ${name}`,
+          text: `New Booking Inquiry:\nName: ${name}\nEmail: ${email}\nPhone: ${phone}\nMessage: ${message}\nTime: ${timestamp}`,
+          html: adminMailHtml
+        })
+      ];
+
+      // If client provided email and client is not already one of the admin receivers, send confirmation
+      const isClientAdmin = receivers.map(r => r.toLowerCase()).includes((email || '').toLowerCase());
+      if (email && email.includes('@') && !isClientAdmin) {
+        sendPromises.push(
+          transporter.sendMail({
+            from: `"${senderLabel}" <${cleanSender}>`,
+            to: email,
+            replyTo: 'moosshibi@gmail.com, rohit@yellobit.com',
+            subject: `✨ We've Received Your Inquiry — Moos B`,
+            text: `Dear ${name},\n\nThank you for reaching out to Moos B! We have received your inquiry and our team will get in touch with you shortly.\n\nDirect Contact: +91 8138833005 / +91 9946860659\nEmail: moosshibi@gmail.com\n\nWarm regards,\nMoos B Team`,
+            html: clientMailHtml
+          }).catch(clientErr => {
+            console.warn('[Contact Form] Client confirmation notice:', clientErr.message);
+          })
+        );
+      }
+
+      await Promise.all(sendPromises);
+
+      console.log(`[Contact Form] Email delivered via SMTP to ${receivers.join(', ')}`);
+      dispatchResult.sent = true;
+      dispatchResult.provider = 'smtp';
+
+      return dispatchResult;
+    } catch (smtpErr) {
+      console.error('[Contact Form] SMTP delivery failed:', smtpErr.message);
+      dispatchResult.error = `SMTP delivery error: ${smtpErr.message}`;
+      return dispatchResult;
+    }
+  }
+
+  // Neither provider configured
+  dispatchResult.sent = false;
+  dispatchResult.provider = 'none';
+  dispatchResult.error = 'Email sending credentials (SMTP_USER & SMTP_PASS, or RESEND_API_KEY) are not set in environment settings.';
+  console.log(`[Contact Form] Note: ${dispatchResult.error}. Submission recorded for ${receivers.join(', ')}.`);
+  return dispatchResult;
+}
+
+// API route for contact form submissions & email delivery
 app.post('/api/contact', async (req, res) => {
   try {
     const rawData = req.body || {};
@@ -217,153 +482,17 @@ app.post('/api/contact', async (req, res) => {
     console.log(`[Contact Form] New booking inquiry received from "${name}" <${email}> (${phone})`);
 
     // 2. Email Notification Dispatch
-    const transporter = getMailTransporter();
-    const receiverEmail = process.env.CONTACT_RECEIVER_EMAIL || 'moosshibi@gmail.com';
-    const senderEmail = process.env.CONTACT_SENDER_EMAIL || process.env.SMTP_USER || `Moos B Official <${receiverEmail}>`;
-
-    if (transporter) {
-      const cleanPhone = phone.replace(/[^0-9+]/g, '');
-      const waLink = cleanPhone ? `https://wa.me/${cleanPhone.startsWith('+') ? cleanPhone.slice(1) : cleanPhone}` : null;
-
-      // Admin Email Template
-      const adminMailHtml = `
-        <!DOCTYPE html>
-        <html>
-        <head>
-          <meta charset="utf-8">
-          <style>
-            body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #0c1017; margin: 0; padding: 24px; color: #f3f4f6; }
-            .card { max-width: 600px; margin: 0 auto; background: #121824; border: 1px solid rgba(243, 223, 186, 0.25); border-radius: 12px; overflow: hidden; box-shadow: 0 16px 40px rgba(0,0,0,0.6); }
-            .header { background: radial-gradient(circle at center, #1e293b 0%, #0c1017 100%); padding: 32px 24px; text-align: center; border-bottom: 1px solid rgba(243, 223, 186, 0.2); }
-            .badge { display: inline-block; background: rgba(243, 223, 186, 0.15); color: #f3dfba; padding: 4px 14px; border-radius: 20px; font-size: 11px; letter-spacing: 2px; text-transform: uppercase; font-weight: 700; margin-bottom: 8px; border: 1px solid rgba(243, 223, 186, 0.3); }
-            .title { color: #f3dfba; margin: 0; font-size: 24px; font-weight: 600; letter-spacing: 0.5px; }
-            .content { padding: 32px 28px; }
-            .field-row { margin-bottom: 20px; padding-bottom: 14px; border-bottom: 1px solid rgba(255,255,255,0.06); }
-            .field-label { font-size: 11px; color: #94a3b8; text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 4px; font-weight: 600; }
-            .field-value { font-size: 16px; color: #ffffff; font-weight: 500; }
-            .message-box { background: rgba(0,0,0,0.35); border-left: 3px solid #f3dfba; padding: 16px 18px; border-radius: 0 8px 8px 0; color: #e2e8f0; font-style: italic; margin-top: 6px; line-height: 1.6; }
-            .actions { margin-top: 28px; text-align: center; }
-            .btn { display: inline-block; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: 600; font-size: 14px; margin: 6px; transition: 0.2s ease; }
-            .btn-gold { background: linear-gradient(135deg, #f3dfba, #c59b68); color: #080b10; }
-            .btn-wa { background: #25D366; color: #ffffff; }
-            .footer { background: #080b10; padding: 16px; text-align: center; font-size: 12px; color: #64748b; border-top: 1px solid rgba(255,255,255,0.05); }
-          </style>
-        </head>
-        <body>
-          <div class="card">
-            <div class="header">
-              <span class="badge">Live Event Inquiry</span>
-              <h1 class="title">New Booking Request</h1>
-            </div>
-            <div class="content">
-              <div class="field-row">
-                <div class="field-label">Client Name</div>
-                <div class="field-value">${name}</div>
-              </div>
-              <div class="field-row">
-                <div class="field-label">Email Address</div>
-                <div class="field-value"><a href="mailto:${email}" style="color: #f3dfba; text-decoration: none;">${email || 'Not provided'}</a></div>
-              </div>
-              <div class="field-row">
-                <div class="field-label">Mobile Number</div>
-                <div class="field-value"><a href="tel:${phone}" style="color: #f3dfba; text-decoration: none;">${phone || 'Not provided'}</a></div>
-              </div>
-              <div class="field-row" style="border-bottom: none;">
-                <div class="field-label">Event Details / Message</div>
-                <div class="message-box">${message ? message.replace(/\n/g, '<br>') : 'No specific message entered.'}</div>
-              </div>
-              <div class="actions">
-                ${email ? `<a href="mailto:${email}?subject=Booking%20Inquiry%20Response%20-%20Moos%20B" class="btn btn-gold">Reply via Email</a>` : ''}
-                ${waLink ? `<a href="${waLink}" class="btn btn-wa">Open in WhatsApp</a>` : ''}
-              </div>
-            </div>
-            <div class="footer">
-              Received on ${timestamp} (IST) • Moos B Live Inquiries
-            </div>
-          </div>
-        </body>
-        </html>
-      `;
-
-      // Dispatch notification email to Moos B / Admin
-      await transporter.sendMail({
-        from: `"${name} (via Moos B Website)" <${senderEmail}>`,
-        to: receiverEmail,
-        replyTo: email || undefined,
-        subject: `✨ New Booking Inquiry from ${name}`,
-        text: `New Booking Inquiry:\nName: ${name}\nEmail: ${email}\nPhone: ${phone}\nMessage: ${message}\nTime: ${timestamp}`,
-        html: adminMailHtml
-      });
-
-      console.log(`[Contact Form] Email notification sent successfully to ${receiverEmail}`);
-
-      // If user provided a valid email, send them an automated luxury acknowledgment
-      if (email && email.includes('@')) {
-        try {
-          const clientMailHtml = `
-            <!DOCTYPE html>
-            <html>
-            <head>
-              <meta charset="utf-8">
-              <style>
-                body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #0c1017; margin: 0; padding: 24px; color: #f3f4f6; }
-                .card { max-width: 580px; margin: 0 auto; background: #121824; border: 1px solid rgba(243, 223, 186, 0.25); border-radius: 12px; overflow: hidden; box-shadow: 0 16px 40px rgba(0,0,0,0.6); }
-                .header { background: radial-gradient(circle at center, #1e293b 0%, #0c1017 100%); padding: 32px 24px; text-align: center; border-bottom: 1px solid rgba(243, 223, 186, 0.2); }
-                .title { color: #f3dfba; margin: 8px 0 0 0; font-size: 22px; font-weight: 600; }
-                .content { padding: 30px 24px; line-height: 1.6; color: #cbd5e1; font-size: 15px; }
-                .gold-text { color: #f3dfba; font-weight: 600; }
-                .summary-box { background: rgba(0,0,0,0.4); border: 1px solid rgba(243, 223, 186, 0.15); border-radius: 8px; padding: 18px; margin: 20px 0; font-size: 14px; }
-                .contact-line { margin-top: 18px; font-size: 14px; color: #94a3b8; }
-                .footer { background: #080b10; padding: 16px; text-align: center; font-size: 12px; color: #64748b; border-top: 1px solid rgba(255,255,255,0.05); }
-              </style>
-            </head>
-            <body>
-              <div class="card">
-                <div class="header">
-                  <h1 class="title">Thank You for Connecting</h1>
-                </div>
-                <div class="content">
-                  <p>Dear <span class="gold-text">${name}</span>,</p>
-                  <p>We have received your event inquiry. Thank you for your interest in bringing the enchanting experience of <strong>Moos B</strong> to your celebration.</p>
-                  <p>Our team is reviewing your request and will connect with you shortly with availability and performance details.</p>
-                  
-                  <div class="summary-box">
-                    <div style="color: #f3dfba; font-weight: 600; margin-bottom: 8px;">Your Submitted Details:</div>
-                    <div><strong>Mobile:</strong> ${phone || '—'}</div>
-                    ${message ? `<div style="margin-top: 6px;"><strong>Note:</strong> ${message}</div>` : ''}
-                  </div>
-
-                  <div class="contact-line">
-                    Need immediate assistance? You can reach us directly at <span class="gold-text">+91 8138833005</span> / <span class="gold-text">+91 9946860659</span> or reply to this email.
-                  </div>
-                </div>
-                <div class="footer">
-                  © ${new Date().getFullYear()} Moos B. Best Mentalist & Magician from Kerala | Global Performer
-                </div>
-              </div>
-            </body>
-            </html>
-          `;
-
-          await transporter.sendMail({
-            from: `"Moos B" <${senderEmail}>`,
-            to: email,
-            subject: `✨ We've Received Your Inquiry — Moos B`,
-            text: `Dear ${name},\n\nThank you for reaching out to Moos B! We have received your inquiry and our team will get in touch with you shortly.\n\nDirect Contact: +91 8138833005 / +91 9946860659\nEmail: moosshibi@gmail.com\n\nWarm regards,\nMoos B Team`,
-            html: clientMailHtml
-          });
-          console.log(`[Contact Form] Confirmation email sent to client <${email}>`);
-        } catch (clientErr) {
-          console.warn('[Contact Form] Client confirmation mail notice:', clientErr.message);
-        }
-      }
-    } else {
-      console.log('[Contact Form] Note: SMTP credentials (SMTP_USER / SMTP_PASS) not configured. Inquiry safely preserved in submissions.json.');
-    }
+    const emailResult = await dispatchBookingEmails({ name, email, phone, message, timestamp });
 
     return res.status(200).json({
       success: true,
-      message: 'Thank you! Your message has been sent successfully. We will get in touch with you soon.'
+      message: 'Thank you! Your message has been sent successfully. We will get in touch with you soon.',
+      emailDelivery: {
+        dispatched: emailResult.sent,
+        provider: emailResult.provider,
+        recipients: emailResult.receivers,
+        error: emailResult.sent ? null : emailResult.error
+      }
     });
 
   } catch (err) {
@@ -375,6 +504,94 @@ app.post('/api/contact', async (req, res) => {
   }
 });
 
+// Diagnostic route: Check email dispatcher status and recipients
+app.get('/api/contact/status', (req, res) => {
+  const receivers = getReceiverEmails();
+  const transporter = getMailTransporter();
+  const hasSmtp = !!transporter;
+  const hasResend = !!process.env.RESEND_API_KEY;
+
+  let submissionsCount = 0;
+  let latestSubmission = null;
+  if (fs.existsSync(SUBMISSIONS_FILE)) {
+    try {
+      const list = JSON.parse(fs.readFileSync(SUBMISSIONS_FILE, 'utf8') || '[]');
+      submissionsCount = list.length;
+      latestSubmission = list[0] || null;
+    } catch (_) {}
+  }
+
+  const activeSmtpUser = process.env.SMTP_USER || 'rohit@yellobit.com';
+
+  res.json({
+    emailServiceConfigured: hasSmtp || hasResend,
+    activeProvider: hasResend ? 'resend' : (hasSmtp ? 'smtp' : 'none (inquiries saved locally)'),
+    recipients: receivers,
+    smtp: {
+      configured: hasSmtp,
+      host: process.env.SMTP_HOST || 'smtp.gmail.com',
+      port: parseInt(process.env.SMTP_PORT || '465', 10),
+      senderEmail: activeSmtpUser,
+      senderLabel: process.env.CONTACT_SENDER_NAME || 'MoosB Web Contact Request'
+    },
+    resend: {
+      configured: hasResend
+    },
+    submissionsRecorded: submissionsCount,
+    latestSubmission: latestSubmission ? {
+      name: latestSubmission.name,
+      email: latestSubmission.email,
+      phone: latestSubmission.phone,
+      submittedAt: latestSubmission.submittedAt
+    } : null,
+    guide: hasSmtp || hasResend
+      ? 'Email dispatcher is active and ready to deliver to ' + receivers.join(' and ') + '.'
+      : 'Emails cannot be dispatched yet because SMTP_USER & SMTP_PASS (or RESEND_API_KEY) are not set in environment settings. Please add your credentials in Settings to enable real-time inbox delivery.'
+  });
+});
+
+// Diagnostic test endpoint: Send a test email right now to moosshibi@gmail.com and rohit@yellobit.com
+app.all('/api/contact/test-email', async (req, res) => {
+  const receivers = getReceiverEmails();
+  const testPayload = {
+    name: 'Test Verifier (Moos B)',
+    email: 'rohit@yellobit.com',
+    phone: '+91 8138833005',
+    message: `Verification test email sent to verify booking inquiry delivery to: ${receivers.join(', ')}`,
+    timestamp: new Date().toLocaleString('en-US', { timeZone: 'Asia/Kolkata', dateStyle: 'full', timeStyle: 'medium' })
+  };
+
+  const result = await dispatchBookingEmails(testPayload);
+
+  res.status(result.sent ? 200 : 400).json({
+    success: result.sent,
+    provider: result.provider,
+    recipients: result.receivers,
+    details: result.sent ? `Test email successfully sent to ${result.receivers.join(', ')}` : result.error,
+    setupAdvice: result.sent ? 'All systems operational!' : {
+      option1_gmail: 'Set SMTP_USER to your Gmail and SMTP_PASS to a 16-character Google App Password (not your personal password).',
+      option2_resend: 'Set RESEND_API_KEY to your API key from resend.com.',
+      option3_custom: 'Set SMTP_HOST, SMTP_PORT, SMTP_USER, and SMTP_PASS to your custom mail server.'
+    }
+  });
+});
+
+// View saved inquiries safely
+app.get('/api/contact/submissions', (req, res) => {
+  try {
+    if (!fs.existsSync(SUBMISSIONS_FILE)) {
+      return res.json({ count: 0, items: [] });
+    }
+    const data = JSON.parse(fs.readFileSync(SUBMISSIONS_FILE, 'utf8') || '[]');
+    return res.json({
+      count: data.length,
+      recipients: getReceiverEmails(),
+      items: data
+    });
+  } catch (err) {
+    return res.status(500).json({ error: 'Failed to read submissions' });
+  }
+});
 
 // Helper to find actual file on disk considering query params embedded in filenames and aliases
 function findStaticFile(requestedUrl, requestedPath) {
