@@ -572,8 +572,12 @@ app.use((req, res, next) => {
     if (contentType) {
       res.setHeader('Content-Type', contentType);
     }
-    // Instruct Vercel Edge CDN and client browsers to cache static assets for 1 year
-    res.setHeader('Cache-Control', 'public, max-age=31536000, s-maxage=31536000, immutable');
+    // Static assets cache policy: keep static-interactive.js fresh, cache static media/fonts
+    if (foundFile.includes('static-interactive.js')) {
+      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+    } else {
+      res.setHeader('Cache-Control', 'public, max-age=31536000, s-maxage=31536000, immutable');
+    }
     return res.sendFile(foundFile);
   }
 
