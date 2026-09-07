@@ -171,214 +171,6 @@
           100% { opacity: 0.8; transform: translateX(-50%) scaleY(0.95); }
         }
 
-        /* Flying Playing Cards Background Layer */
-        .moosb-flying-cards-layer {
-          position: absolute;
-          inset: 0;
-          width: 100%;
-          height: 100%;
-          pointer-events: none !important;
-          z-index: 6;
-          overflow: hidden;
-          perspective: 1200px;
-        }
-
-        .moosb-flying-card {
-          position: absolute;
-          width: 82px;
-          height: 120px;
-          border-radius: 8px;
-          pointer-events: none !important;
-          transform-style: preserve-3d;
-          will-change: transform;
-          filter: drop-shadow(0 14px 26px rgba(0, 0, 0, 0.85)) drop-shadow(0 0 16px rgba(243, 223, 186, 0.35));
-          user-select: none;
-          opacity: 0.85;
-        }
-
-        @media (max-width: 768px) {
-          .moosb-flying-card {
-            width: 58px;
-            height: 85px;
-          }
-          .moosb-flying-card[data-mobile-hide="true"] {
-            display: none !important;
-          }
-        }
-
-        .moosb-card-3d-wrap {
-          position: relative;
-          width: 100%;
-          height: 100%;
-          transform-style: preserve-3d;
-        }
-
-        .moosb-card-face {
-          position: absolute;
-          inset: 0;
-          width: 100%;
-          height: 100%;
-          border-radius: 8px;
-          backface-visibility: hidden;
-          box-sizing: border-box;
-          display: flex;
-          flex-direction: column;
-          justify-content: space-between;
-          padding: 8px;
-        }
-
-        /* Face: Classic Vintage Ivory */
-        .moosb-card-face-ivory {
-          background: linear-gradient(145deg, #ffffff 0%, #faf5ec 55%, #ece2ce 100%);
-          border: 1.5px solid rgba(212, 175, 55, 0.8);
-          box-shadow: inset 0 0 8px rgba(212, 175, 55, 0.2);
-          color: #111827;
-        }
-
-        /* Face: Dark Luxury Onyx & Gold */
-        .moosb-card-face-dark {
-          background: linear-gradient(145deg, #1a2230 0%, #0e141e 65%, #070a10 100%);
-          border: 1.5px solid rgba(243, 223, 186, 0.85);
-          box-shadow: inset 0 0 8px rgba(243, 223, 186, 0.18);
-          color: #f3dfba;
-        }
-
-        /* Back: Gold Foil Mandala Filigree */
-        .moosb-card-face-back {
-          transform: rotateY(180deg);
-          background: #080c13;
-          border: 1.5px solid rgba(243, 223, 186, 0.85);
-          padding: 5px;
-        }
-
-        .moosb-card-back-pattern {
-          width: 100%;
-          height: 100%;
-          border-radius: 5px;
-          border: 1px solid rgba(243, 223, 186, 0.45);
-          background: radial-gradient(circle at 50% 50%, rgba(243, 223, 186, 0.25) 0%, transparent 68%),
-                      repeating-linear-gradient(45deg, rgba(243, 223, 186, 0.1) 0, rgba(243, 223, 186, 0.1) 2px, transparent 2px, transparent 7px),
-                      repeating-linear-gradient(-45deg, rgba(243, 223, 186, 0.1) 0, rgba(243, 223, 186, 0.1) 2px, transparent 2px, transparent 7px);
-          display: flex;
-          align-items: center;
-          justify-content: center;
-        }
-
-        .moosb-card-back-center-icon {
-          width: 32px;
-          height: 32px;
-          color: #f3dfba;
-          opacity: 0.95;
-        }
-
-        /* Corner Pip Labels */
-        .moosb-pip-top, .moosb-pip-bottom {
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          line-height: 1;
-          font-weight: 800;
-          font-family: 'Cinzel', Georgia, serif;
-        }
-        .moosb-pip-top { font-size: 13px; }
-        .moosb-pip-bottom { font-size: 13px; transform: rotate(180deg); }
-        .moosb-pip-suit { font-size: 11px; margin-top: 2px; }
-
-        @media (max-width: 768px) {
-          .moosb-pip-top { font-size: 9px; }
-          .moosb-pip-bottom { font-size: 9px; }
-          .moosb-pip-suit { font-size: 8px; }
-        }
-
-        .moosb-suit-red { color: #e11d48; }
-        .moosb-suit-gold { color: #f3dfba; }
-        .moosb-suit-black { color: #111827; }
-
-        .moosb-card-center {
-          align-self: center;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          flex: 1;
-        }
-        .moosb-card-center svg {
-          width: 32px;
-          height: 32px;
-        }
-        @media (max-width: 768px) {
-          .moosb-card-center svg {
-            width: 22px;
-            height: 22px;
-          }
-        }
-
-        /* Continuous 3D Levitating & Tumbling Card Animations */
-        @keyframes moosbCardLevitate1 {
-          0% {
-            transform: translate3d(0, 0, 0) rotateX(14deg) rotateY(-18deg) rotateZ(8deg);
-          }
-          33% {
-            transform: translate3d(16px, -24px, 45px) rotateX(4deg) rotateY(12deg) rotateZ(-6deg);
-          }
-          66% {
-            transform: translate3d(-14px, 20px, 20px) rotateX(-10deg) rotateY(-8deg) rotateZ(14deg);
-          }
-          100% {
-            transform: translate3d(0, 0, 0) rotateX(14deg) rotateY(-18deg) rotateZ(8deg);
-          }
-        }
-
-        @keyframes moosbCardLevitate2 {
-          0% {
-            transform: translate3d(0, 0, 0) rotateX(-16deg) rotateY(20deg) rotateZ(-10deg);
-          }
-          33% {
-            transform: translate3d(-18px, 26px, 35px) rotateX(10deg) rotateY(-15deg) rotateZ(6deg);
-          }
-          66% {
-            transform: translate3d(14px, -20px, 55px) rotateX(-6deg) rotateY(18deg) rotateZ(-14deg);
-          }
-          100% {
-            transform: translate3d(0, 0, 0) rotateX(-16deg) rotateY(20deg) rotateZ(-10deg);
-          }
-        }
-
-        @keyframes moosbCardLevitate3 {
-          0% {
-            transform: translate3d(0, 0, 0) rotateX(10deg) rotateY(12deg) rotateZ(-6deg);
-          }
-          50% {
-            transform: translate3d(20px, -30px, 50px) rotateX(-12deg) rotateY(-20deg) rotateZ(10deg);
-          }
-          100% {
-            transform: translate3d(0, 0, 0) rotateX(10deg) rotateY(12deg) rotateZ(-6deg);
-          }
-        }
-
-        @keyframes moosbCardSpinSlow {
-          0% {
-            transform: translate3d(0, 0, 0) rotateX(10deg) rotateY(0deg) rotateZ(6deg);
-          }
-          50% {
-            transform: translate3d(-15px, -25px, 45px) rotateX(-10deg) rotateY(180deg) rotateZ(-6deg);
-          }
-          100% {
-            transform: translate3d(0, 0, 0) rotateX(10deg) rotateY(360deg) rotateZ(6deg);
-          }
-        }
-
-        @keyframes moosbCardTumbleSlow {
-          0% {
-            transform: translate3d(0, 0, 0) rotateX(0deg) rotateY(0deg) rotateZ(0deg);
-          }
-          50% {
-            transform: translate3d(18px, 26px, 50px) rotateX(180deg) rotateY(180deg) rotateZ(16deg);
-          }
-          100% {
-            transform: translate3d(0, 0, 0) rotateX(360deg) rotateY(360deg) rotateZ(0deg);
-          }
-        }
-
         /* Mentalist Gallery Container & Controls */
         .moosb-mentalist-gallery-wrapper {
           width: 100%;
@@ -929,14 +721,11 @@
           parentSec.insertBefore(spotlight, parentSec.firstChild);
           parentSec.insertBefore(canvas, parentSec.firstChild);
 
-          const flyingCardsLayer = parentSec.querySelector('.moosb-flying-cards-layer') || document.createElement('div');
-          if (!flyingCardsLayer.parentNode) {
-            flyingCardsLayer.className = 'moosb-flying-cards-layer';
-            parentSec.appendChild(flyingCardsLayer);
-          }
+          // Clean up any lingering flying cards layer
+          const oldCardsLayer = parentSec.querySelector('.moosb-flying-cards-layer');
+          if (oldCardsLayer) oldCardsLayer.remove();
 
           initAuroraMindWaves(canvas, parentSec);
-          initFlyingCardsBackground(flyingCardsLayer, parentSec);
         }
       }
 
@@ -1167,9 +956,22 @@
       window.addEventListener('resize', resize);
     }
 
+    let isVisible = true;
+    if (window.IntersectionObserver) {
+      const io = new IntersectionObserver(function (entries) {
+        isVisible = entries[0].isIntersecting;
+      }, { threshold: 0 });
+      io.observe(container);
+    }
+
     let time = 0;
 
     function render() {
+      if (!isVisible) {
+        requestAnimationFrame(render);
+        return;
+      }
+
       time += 1;
       ctx.clearRect(0, 0, width, height);
 
@@ -1205,6 +1007,7 @@
       }
 
       // 3. Floating Stardust Particles
+      const isMobile = width <= 768;
       particles.forEach(function (p) {
         p.x += p.vx;
         p.y += p.vy;
@@ -1236,8 +1039,10 @@
         ctx.fillStyle = p.isGold
           ? `rgba(243, 223, 186, ${currentAlpha})`
           : `rgba(255, 255, 255, ${currentAlpha * 0.85})`;
-        ctx.shadowColor = p.isGold ? 'rgba(243, 223, 186, 0.7)' : 'rgba(255, 255, 255, 0.5)';
-        ctx.shadowBlur = 8;
+        if (!isMobile) {
+          ctx.shadowColor = p.isGold ? 'rgba(243, 223, 186, 0.7)' : 'rgba(255, 255, 255, 0.5)';
+          ctx.shadowBlur = 8;
+        }
         ctx.fill();
         ctx.shadowBlur = 0;
       });
@@ -1246,173 +1051,6 @@
     }
 
     render();
-  }
-
-  // 4b. Ambient Flying Playing Cards Layer for Photo Gallery
-  function initFlyingCardsBackground(existingLayer, parentSec) {
-    const sec = parentSec || document.querySelector('.elementor-element-86da493');
-    if (!sec) return;
-
-    sec.style.position = 'relative';
-
-    let layer = existingLayer || sec.querySelector('.moosb-flying-cards-layer');
-    if (!layer) {
-      layer = document.createElement('div');
-      layer.className = 'moosb-flying-cards-layer';
-      sec.appendChild(layer);
-    }
-
-    // Prevent duplicate card instantiation
-    if (layer.children.length > 0) return;
-
-    // SVG graphics templates for card face centers
-    const spadeSvg = `<svg viewBox="0 0 100 120" fill="currentColor"><path d="M50 12 C44 26 15 62 15 80 C15 95 28 104 43 97 C45 96 46 95 47 93 L43 112 L57 112 L53 93 C54 95 55 96 57 97 C72 104 85 95 85 80 C85 62 56 26 50 12 Z"/><circle cx="50" cy="65" r="7" fill="#f3dfba" opacity="0.9"/><circle cx="50" cy="65" r="3" fill="#111827"/></svg>`;
-    const heartSvg = `<svg viewBox="0 0 100 120" fill="#e11d48"><path d="M50 104 C30 85 10 65 10 42 C10 24 24 15 38 15 C45 15 50 20 50 20 C50 20 55 15 62 15 C76 15 90 24 90 42 C90 65 70 85 50 104 Z"/><path d="M36 28 L40 38 L50 26 L60 38 L64 28 L64 42 L36 42 Z" fill="#f3dfba" stroke="#f3dfba" stroke-width="1.5"/></svg>`;
-    const queenSpadeSvg = `<svg viewBox="0 0 100 120" fill="currentColor"><path d="M50 16 C45 30 20 62 20 78 C20 90 31 98 43 93 L41 108 L59 108 L57 93 C69 98 80 90 80 78 C80 62 55 30 50 16 Z"/><circle cx="50" cy="56" r="6" fill="#f3dfba"/><path d="M38 32 L50 20 L62 32" stroke="#f3dfba" stroke-width="3" fill="none"/></svg>`;
-    const mentalistEyeSvg = `<svg viewBox="0 0 100 120" fill="none" stroke="#f3dfba" stroke-width="2.5"><path d="M16 60 C30 36 70 36 84 60 C70 84 30 84 16 60 Z" fill="rgba(243,223,186,0.18)"/><circle cx="50" cy="60" r="14" fill="#f3dfba" stroke="none"/><circle cx="50" cy="60" r="6" fill="#0b0f17" stroke="none"/><path d="M50 18 L50 28 M50 92 L50 102 M18 60 L28 60 M72 60 L82 60" stroke-linecap="round"/><circle cx="50" cy="60" r="32" stroke="rgba(243,223,186,0.4)" stroke-dasharray="2 3"/></svg>`;
-    const diamondSvg = `<svg viewBox="0 0 100 120" fill="#e11d48"><polygon points="50,14 85,60 50,106 15,60"/><polygon points="50,28 73,60 50,92 27,60" fill="#f3dfba" opacity="0.65"/></svg>`;
-    const clubSvg = `<svg viewBox="0 0 100 120" fill="currentColor"><circle cx="50" cy="38" r="18"/><circle cx="32" cy="64" r="18"/><circle cx="68" cy="64" r="18"/><polygon points="46,65 54,65 59,105 41,105"/><circle cx="50" cy="54" r="6" fill="#f3dfba"/></svg>`;
-    const dualHeartsSvg = `<svg viewBox="0 0 100 120" fill="#e11d48"><path d="M38 72 C24 60 10 46 10 30 C10 18 20 12 30 12 C35 12 38 16 38 16 C38 16 41 12 46 12 C56 12 66 18 66 30 C66 46 52 60 38 72 Z"/><path d="M62 108 C50 98 38 86 38 72 C38 62 46 56 54 56 C58 56 62 60 62 60 C62 60 66 56 70 56 C78 56 86 62 86 72 C86 86 74 98 62 108 Z" opacity="0.85"/></svg>`;
-
-    // Curated deck of 10 levitating 3D cards distributed throughout the gallery section
-    const cardsConfig = [
-      {
-        rank: 'A', suit: '♠', isRed: false, theme: 'ivory',
-        svg: spadeSvg, top: '5%', left: '3%', anim: 'moosbCardLevitate1', dur: '7s', delay: '0s',
-        mobileHide: false
-      },
-      {
-        rank: 'K', suit: '♥', isRed: true, theme: 'ivory',
-        svg: heartSvg, top: '8%', right: '3%', anim: 'moosbCardLevitate2', dur: '8.5s', delay: '-2s',
-        mobileHide: false
-      },
-      {
-        rank: 'M', suit: '✦', isRed: false, theme: 'dark',
-        svg: mentalistEyeSvg, top: '20%', left: '2%', anim: 'moosbCardSpinSlow', dur: '12s', delay: '-4s',
-        mobileHide: false
-      },
-      {
-        rank: '', suit: '', isRed: false, theme: 'back-only',
-        svg: '', top: '24%', right: '3%', anim: 'moosbCardTumbleSlow', dur: '14s', delay: '-6s',
-        mobileHide: false
-      },
-      {
-        rank: 'Q', suit: '♠', isRed: false, theme: 'ivory',
-        svg: queenSpadeSvg, top: '40%', left: '3%', anim: 'moosbCardLevitate3', dur: '9s', delay: '-3s',
-        mobileHide: false
-      },
-      {
-        rank: 'A', suit: '♦', isRed: true, theme: 'dark',
-        svg: diamondSvg, top: '44%', right: '2%', anim: 'moosbCardLevitate1', dur: '8s', delay: '-1s',
-        mobileHide: false
-      },
-      {
-        rank: 'J', suit: '♣', isRed: false, theme: 'ivory',
-        svg: clubSvg, top: '62%', left: '2%', anim: 'moosbCardLevitate2', dur: '10s', delay: '-5s',
-        mobileHide: false
-      },
-      {
-        rank: '10', suit: '♥', isRed: true, theme: 'ivory',
-        svg: dualHeartsSvg, top: '66%', right: '3%', anim: 'moosbCardSpinSlow', dur: '13s', delay: '-7s',
-        mobileHide: false
-      },
-      {
-        rank: 'K', suit: '♠', isRed: false, theme: 'dark',
-        svg: spadeSvg, top: '82%', left: '3%', anim: 'moosbCardLevitate3', dur: '9.5s', delay: '-2s',
-        mobileHide: false
-      },
-      {
-        rank: '', suit: '', isRed: false, theme: 'back-only',
-        svg: '', top: '86%', right: '3%', anim: 'moosbCardTumbleSlow', dur: '15s', delay: '-9s',
-        mobileHide: false
-      }
-    ];
-
-    cardsConfig.forEach(function (cfg) {
-      const cardEl = document.createElement('div');
-      cardEl.className = 'moosb-flying-card';
-      if (cfg.mobileHide) {
-        cardEl.setAttribute('data-mobile-hide', 'true');
-      }
-      cardEl.style.top = cfg.top;
-      if (cfg.left) cardEl.style.left = cfg.left;
-      if (cfg.right) cardEl.style.right = cfg.right;
-      cardEl.style.animation = `${cfg.anim} ${cfg.dur} cubic-bezier(0.45, 0.05, 0.55, 0.95) infinite ${cfg.delay}`;
-
-      const suitClass = cfg.isRed ? 'moosb-suit-red' : (cfg.theme === 'dark' ? 'moosb-suit-gold' : 'moosb-suit-black');
-      const faceClass = cfg.theme === 'dark' ? 'moosb-card-face-dark' : 'moosb-card-face-ivory';
-
-      let frontHtml = '';
-      if (cfg.theme === 'back-only') {
-        frontHtml = `
-          <div class="moosb-card-face moosb-card-face-back" style="transform: rotateY(0deg);">
-            <div class="moosb-card-back-pattern">
-              <svg viewBox="0 0 100 100" class="moosb-card-back-center-icon" fill="none" stroke="#f3dfba" stroke-width="2">
-                <circle cx="50" cy="50" r="38" stroke-dasharray="3 3"/>
-                <polygon points="50,16 80,68 20,68" stroke="rgba(243,223,186,0.7)"/>
-                <polygon points="50,84 80,32 20,32" stroke="rgba(243,223,186,0.7)"/>
-                <circle cx="50" cy="50" r="10" fill="#f3dfba" opacity="0.6"/>
-              </svg>
-            </div>
-          </div>
-        `;
-      } else {
-        frontHtml = `
-          <div class="moosb-card-face ${faceClass}">
-            <div class="moosb-pip-top ${suitClass}">
-              <span>${cfg.rank}</span>
-              <span class="moosb-pip-suit">${cfg.suit}</span>
-            </div>
-            <div class="moosb-card-center ${suitClass}">
-              ${cfg.svg}
-            </div>
-            <div class="moosb-pip-bottom ${suitClass}">
-              <span>${cfg.rank}</span>
-              <span class="moosb-pip-suit">${cfg.suit}</span>
-            </div>
-          </div>
-        `;
-      }
-
-      const backHtml = `
-        <div class="moosb-card-face moosb-card-face-back">
-          <div class="moosb-card-back-pattern">
-            <svg viewBox="0 0 100 100" class="moosb-card-back-center-icon" fill="none" stroke="#f3dfba" stroke-width="2">
-              <circle cx="50" cy="50" r="38" stroke-dasharray="3 3"/>
-              <polygon points="50,16 80,68 20,68" stroke="rgba(243,223,186,0.7)"/>
-              <polygon points="50,84 80,32 20,32" stroke="rgba(243,223,186,0.7)"/>
-              <circle cx="50" cy="50" r="10" fill="#f3dfba" opacity="0.6"/>
-            </svg>
-          </div>
-        </div>
-      `;
-
-      cardEl.innerHTML = `
-        <div class="moosb-card-3d-wrap">
-          ${frontHtml}
-          ${backHtml}
-        </div>
-      `;
-
-      layer.appendChild(cardEl);
-    });
-
-    // Subtle scroll parallax for 3D card depth
-    let ticking = false;
-    window.addEventListener('scroll', function () {
-      if (!ticking) {
-        requestAnimationFrame(function () {
-          const rect = sec.getBoundingClientRect();
-          if (rect.top < window.innerHeight && rect.bottom > 0) {
-            const progress = (window.innerHeight - rect.top) / (window.innerHeight + rect.height);
-            const parallaxShift = (progress - 0.5) * 35;
-            layer.style.transform = `translate3d(0, ${parallaxShift.toFixed(1)}px, 0)`;
-          }
-          ticking = false;
-        });
-        ticking = true;
-      }
-    }, { passive: true });
   }
 
   // 5. Image Carousel / Swiper Initialization
@@ -1975,13 +1613,17 @@
     initMobileMenu();
     initAccordions();
     initDynamicMentalistGallery();
-    initFlyingCardsBackground();
     initCarousels();
     initContactForm();
     initBackgroundVideo();
     initAppearAnimations();
     initMotionEffects();
     initDynamicCopyrightYear();
+
+    // Ensure any residual flying cards layer is completely cleared
+    document.querySelectorAll('.moosb-flying-cards-layer').forEach(function (el) {
+      el.remove();
+    });
   }
 
   // Ensure copyright year is always dynamically current
