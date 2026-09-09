@@ -45,7 +45,7 @@ function cleanEmailAddress(raw) {
 
 function getMailTransporter() {
   const smtpUser = process.env.SMTP_USER || 'rohit@yellobit.com';
-  const rawPass = process.env.SMTP_PASS || 'jmfowrjquxxmccgm';
+  const rawPass = process.env.SMTP_PASS;
   const smtpPass = (rawPass || '').replace(/\s+/g, '');
 
   if (!smtpUser || !smtpPass) {
